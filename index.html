@@ -225,22 +225,25 @@
                 handleFile(file);
             });
         }
-
+        
         // ファイルを処理してプレビューを表示
         function handleFile(file) {
             const reader = new FileReader();
             reader.onload = (e) => {
-                // プレビュー表示
+                // 1. 先に画像要素の src にデータをセットする
                 previewImage.src = e.target.result;
-                previewImage.style.display = 'block';
-                uploadPlaceholder.style.display = 'none';
                 
-                // 画像が読み込まれたら判定を開始
-                resultBox.innerText = '⌛ AIが判定中...';
-                resultBox.className = '';
-                smileScoreWrapper.style.display = 'none';
-                
-                detectFace();
+                // 2. 画像がブラウザに完全に読み込まれ終わってから、AI判定をスタートさせる
+                previewImage.onload = () => {
+                    previewImage.style.display = 'block';
+                    uploadPlaceholder.style.display = 'none';
+                    
+                    resultBox.innerText = '⌛ AIが判定中...';
+                    resultBox.className = '';
+                    smileScoreWrapper.style.display = 'none';
+                    
+                    detectFace();
+                };
             };
             reader.readAsDataURL(file);
         }
