@@ -182,13 +182,13 @@
 
         // 1. AIモデルの読み込み
         async function init() {
-            // あなたのリポジトリ内のファイルを読み込む相対パス
-            const MODEL_URL = './';
+            // 自分のリポジトリではなく、拡張子なしファイルも正常に配信してくれる信頼性の高いCDN（公式提供）に変更します
+            const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/';
             
             try {
-                // モデルを順次読み込み
-                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceExpressionNavigator.loadFromUri(MODEL_URL);
+                // 明示的にTinyFaceDetectorとFaceExpressionのモデルを読み込む
+                await faceapi.loadTinyFaceDetectorModel(MODEL_URL);
+                await faceapi.loadFaceExpressionModel(MODEL_URL);
                 
                 statusText.innerText = '準備完了！';
                 spinner.innerText = '✅';
@@ -198,7 +198,7 @@
                 initUploadListener();
             } catch (err) {
                 console.error("モデルの読み込みに失敗しました:", err);
-                statusText.innerText = 'エラー: モデル読み込み失敗 (ファイル不足かURLミス)';
+                statusText.innerText = 'エラー: モデル読み込み失敗。コンソールを確認してください。';
                 spinner.innerText = '❌';
                 resultBox.innerText = '--';
             }
@@ -206,14 +206,12 @@
 
         // 画像アップロードのリスナーを設定
         function initUploadListener() {
-            // ファイル選択時
             imageInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
                 handleFile(file);
             });
 
-            // ドラッグ＆ドロップ対応
             const mediaArea = document.getElementById('media-area');
             mediaArea.addEventListener('dragover', (e) => { e.preventDefault(); mediaArea.style.borderColor = '#4a90e2'; });
             mediaArea.addEventListener('dragleave', () => { mediaArea.style.borderColor = '#d1d9e6'; });
@@ -225,15 +223,15 @@
                 handleFile(file);
             });
         }
-        
+
         // ファイルを処理してプレビューを表示
         function handleFile(file) {
             const reader = new FileReader();
             reader.onload = (e) => {
-                // 1. 先に画像要素の src にデータをセットする
+                // 先に画像要素の src にデータをセット
                 previewImage.src = e.target.result;
                 
-                // 2. 画像がブラウザに完全に読み込まれ終わってから、AI判定をスタートさせる
+                // 画像がブラウザに完全に読み込まれ終わってから、AI判定の準備をする
                 previewImage.onload = () => {
                     previewImage.style.display = 'block';
                     uploadPlaceholder.style.display = 'none';
@@ -242,42 +240,41 @@
                     resultBox.className = '';
                     smileScoreWrapper.style.display = 'none';
                     
-                    detectFace();
+                    // ブラウザの描画が一瞬落ち着くのを待ってからAI判定をキック
+                    setTimeout(detectFace, 100);
                 };
             };
             reader.readAsDataURL(file);
         }
 
-        // 2. 笑顔の判定（アップロードされた画像に対して）
+        // 2. 笑顔の判定
         async function detectFace() {
-            // face-api.jsの処理完了を少し待つための小さなディレイ（任意）
-            await new Promise(r => setTimeout(r, 300));
+            try {
+                // 確実に画像要素（HTMLImageElement）としてAIに渡す
+                const detections = await faceapi.detectSingleFace(previewImage, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
 
-            // 軽量なTinyFaceDetectorを使用し、表情(Expressions)を検出
-            const detections = await faceapi.detectSingleFace(previewImage, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
+                if (detections) {
+                    const smileProbability = detections.expressions.happy;
+                    const smileScore = Math.round(smileProbability * 100);
 
-            if (detections) {
-                // happy（笑顔）の確率を取得 (0.0 ～ 1.0)
-                const smileProbability = detections.expressions.happy;
-                const smileScore = Math.round(smileProbability * 100);
+                    smileScoreWrapper.style.display = 'block';
+                    smileBar.style.width = `${smileScore}%`;
 
-                // UIの更新
-                smileScoreWrapper.style.display = 'block';
-                smileBar.style.width = `${smileScore}%`;
-
-                // 笑顔度が 60% 以上なら「笑顔」と判定
-                if (smileScore > 60) {
-                    resultBox.innerHTML = `🥰 笑顔！ <span class="result-smile">(${smileScore}%)</span>`;
-                    resultBox.className = 'result-smile';
+                    if (smileScore > 60) {
+                        resultBox.innerHTML = `🥰 笑顔！ <span class="result-smile">(${smileScore}%)</span>`;
+                        resultBox.className = 'result-smile';
+                    } else {
+                        resultBox.innerHTML = `😐 真顔 <span class="result-serious">(${smileScore}%)</span>`;
+                        resultBox.className = 'result-serious';
+                    }
                 } else {
-                    resultBox.innerHTML = `😐 真顔 <span class="result-serious">(${smileScore}%)</span>`;
-                    resultBox.className = 'result-serious';
+                    resultBox.innerText = `👤 顔が検出されませんでした。別のはっきり写った画像でお試しください。`;
+                    resultBox.className = '';
+                    smileScoreWrapper.style.display = 'none';
                 }
-            } else {
-                // 顔が見つからない
-                resultBox.innerText = '👤 顔が見つかりませんでした';
-                resultBox.className = '';
-                smileScoreWrapper.style.display = 'none';
+            } catch (error) {
+                console.error("判定中にエラーが発生しました:", error);
+                resultBox.innerText = '❌ 判定エラーが発生しました';
             }
         }
 
