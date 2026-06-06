@@ -41,7 +41,7 @@
         // 1. AIモデルの読み込みとカメラの起動
         async function init() {
             // GitHub Pagesでも動作するようにCDNから学習済みモデルを読み込む
-            const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+            const MODEL_URL = './';
             
             try {
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
